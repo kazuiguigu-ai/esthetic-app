@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#e91e8c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ご予約">
+  <title>ご予約受付 🌸</title>
+  <style>
+    :root {
+      --pink:#f4a7b9; --pink-l:#fce4ec; --pink-m:#f8bbd0;
+      --beige:#fdf6f0; --accent:#e91e8c; --text:#4a3728;
+      --tl:#8b6f6f; --white:#fff; --radius:14px;
+      --shadow:0 2px 12px rgba(180,120,120,.12);
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Hiragino Kaku Gothic ProN','Meiryo',sans-serif;background:var(--beige);color:var(--text);min-height:100vh;-webkit-text-size-adjust:100%;}
+    .wrap{max-width:480px;margin:0 auto;padding-bottom:calc(48px + env(safe-area-inset-bottom));}
+
+    /* ── Header ── */
+    .hdr{background:linear-gradient(135deg,#e91e8c,#f06292 50%,#fce4ec);padding:calc(22px + env(safe-area-inset-top)) 16px 16px;text-align:center;color:#fff;}
+    .hdr .logo{font-size:2rem;margin-bottom:4px;}
+    .hdr h1{font-size:1.25rem;font-weight:800;}
+    .hdr p{font-size:.8rem;opacity:.88;margin-top:3px;}
+
+    /* ── Step bar ── */
+    .steps{display:flex;background:#fff;border-bottom:1px solid var(--pink-l);}
+    .sitem{flex:1;padding:10px 2px;text-align:center;font-size:.68rem;font-weight:700;color:var(--tl);border-bottom:3px solid transparent;transition:all .2s;}
+    .sitem.active{color:var(--accent);border-bottom-color:var(--accent);}
+    .sitem.done{color:#4caf50;border-bottom-color:#4caf50;}
+    .snum{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#eee;color:var(--tl);font-size:.68rem;margin-right:3px;vertical-align:middle;}
+    .sitem.active .snum{background:var(--accent);color:#fff;}
+    .sitem.done   .snum{background:#4caf50;color:#fff;}
+
+    /* ── Content ── */
+    .sc{padding:20px 16px;}
+
+    /* ── Menu cards ── */
+    .menu-card{background:#fff;border-radius:var(--radius);border:2px solid var(--pink-l);padding:13px 14px;margin-bottom:10px;cursor:pointer;transition:all .18s;display:flex;align-items:center;gap:12px;}
+    .menu-card:hover,.menu-card.sel{border-color:var(--accent);box-shadow:0 2px 14px rgba(233,30,140,.14);}
+    .menu-card.sel{background:var(--pink-l);}
+    .mico{font-size:1.7rem;flex-shrink:0;}
+    .minfo{flex:1;}
+    .mname{font-weight:800;font-size:.93rem;}
+    .mdesc{font-size:.75rem;color:var(--tl);margin-top:2px;}
+    .mtags{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
+    .mtag{background:var(--pink-l);color:var(--accent);border-radius:10px;padding:2px 8px;font-size:.7rem;font-weight:700;}
+    .mchk{color:var(--accent);font-size:1.1rem;flex-shrink:0;}
+
+    /* ── Calendar ── */
+    .wnav{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+    .wnav .wlbl{flex:1;text-align:center;font-weight:700;font-size:.85rem;}
+    .wbtn{background:var(--pink-l);border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;font-size:.95rem;color:var(--accent);font-weight:700;flex-shrink:0;touch-action:manipulation;}
+    .cgrid{display:grid;grid-template-columns:36px repeat(7,1fr);gap:1px;background:#f0d8e0;border-radius:10px;overflow:hidden;min-width:300px;}
+    .cc{background:#fff;display:flex;align-items:center;justify-content:center;min-height:38px;font-size:.7rem;position:relative;cursor:default;}
+    .s-ok{touch-action:manipulation;}
+    .ch{background:#fce4ec;font-weight:800;padding:6px 2px;flex-direction:column;gap:1px;border-bottom:1px solid var(--pink-m);}
+    .ch.tod{background:var(--accent);color:#fff;}
+    .ch .chd{font-size:.8rem;font-weight:800;}
+    .ch .cdy{font-size:.6rem;opacity:.8;}
+    .ctime{background:var(--beige);font-size:.63rem;color:var(--tl);font-weight:600;}
+    .ccor{background:var(--beige);border-bottom:1px solid var(--pink-m);font-size:.6rem;color:var(--tl);}
+    .s-ok{background:#fce4ec;cursor:pointer;}
+    .s-ok:hover{background:#f8bbd0;}
+    .s-ok::after{content:'○';color:var(--accent);font-weight:800;font-size:.85rem;}
+    .s-ok.pick{background:var(--accent);}
+    .s-ok.pick::after{content:'◉';color:#fff;}
+    .s-ng{background:#eee;}
+    .s-ng::after{content:'';display:block;width:55%;height:2px;background:#ccc;border-radius:1px;}
+    .s-cl{background:#f5f5f5;opacity:.45;}
+    .legend{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;font-size:.73rem;color:var(--tl);}
+    .legend span{display:flex;align-items:center;gap:4px;}
+    .ldot{width:11px;height:11px;border-radius:3px;flex-shrink:0;}
+
+    /* ── Form ── */
+    .fg{display:flex;flex-direction:column;gap:5px;margin-bottom:13px;}
+    .fg label{font-size:.8rem;font-weight:700;color:var(--tl);}
+    .fg input,.fg textarea{padding:10px 13px;border:2px solid var(--pink-m);border-radius:10px;font-size:16px;color:var(--text);outline:none;background:#fff;font-family:inherit;transition:border-color .2s;}
+    .fg input:focus,.fg textarea:focus{border-color:var(--accent);}
+    .fg textarea{min-height:64px;resize:vertical;}
+
+    /* ── Buttons ── */
+    .btn{display:block;width:100%;padding:13px;border-radius:22px;border:none;cursor:pointer;font-size:.92rem;font-weight:800;text-align:center;transition:all .2s;font-family:inherit;touch-action:manipulation;}
+    .btn-p{background:var(--accent);color:#fff;margin-top:14px;}
+    .btn-p:hover{background:#c2185b;transform:translateY(-1px);}
+    .btn-s{background:var(--pink-l);color:var(--accent);margin-top:8px;}
+
+    /* ── Info banners ── */
+    .ibanner{background:var(--pink-l);border-radius:10px;padding:9px 13px;font-size:.78rem;color:var(--tl);margin-bottom:13px;line-height:1.6;}
+    .selinfo{background:var(--pink-l);border-radius:10px;padding:9px 13px;font-size:.83rem;color:var(--accent);font-weight:700;margin-bottom:13px;line-height:1.6;}
+    .stitle{font-size:.92rem;font-weight:800;color:var(--accent);margin-bottom:13px;}
+
+    /* ── Summary ── */
+    .scard{background:#fff;border-radius:var(--radius);border:2px solid var(--pink-m);padding:14px;margin-bottom:14px;}
+    .srow{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--pink-l);font-size:.87rem;}
+    .srow:last-child{border:none;}
+    .sl{color:var(--tl);font-weight:700;min-width:76px;flex-shrink:0;}
+    .sv{font-weight:700;}
+
+    /* ── Confirm ── */
+    .conf-box{background:#fff;border-radius:var(--radius);padding:24px 18px;text-align:center;box-shadow:var(--shadow);margin-bottom:14px;}
+    .conf-box .cico{font-size:3.2rem;margin-bottom:8px;}
+    .conf-box h2{color:var(--accent);font-size:1.15rem;font-weight:800;margin-bottom:6px;}
+    .conf-box p{font-size:.83rem;color:var(--tl);line-height:1.75;}
+
+    /* ── LINE msg ── */
+    .line-box{background:#06c755;border-radius:var(--radius);padding:15px;margin-bottom:14px;}
+    .line-box h3{font-size:.83rem;color:#fff;margin-bottom:9px;opacity:.92;}
+    .lmsg{background:#fff;color:var(--text);border-radius:10px;padding:12px 13px;font-size:.8rem;line-height:1.75;white-space:pre-wrap;font-family:inherit;}
+    .cpybtn{display:block;margin-top:9px;padding:8px 16px;background:#fff;color:#06c755;border:none;border-radius:14px;font-weight:800;font-size:.8rem;cursor:pointer;width:100%;font-family:inherit;}
+
+    /* ── Mail btn ── */
+    .mail-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:#1565c0;color:#fff;padding:12px 20px;border-radius:20px;text-decoration:none;font-weight:700;font-size:.85rem;margin-top:10px;border:none;cursor:pointer;width:100%;font-family:inherit;}
+
+    /* ── Mobile overrides ── */
+    @media (max-width:480px){
+      .sc{padding:14px 12px;}
+      .menu-card{padding:12px 12px;}
+      .mname{font-size:.88rem;}
+      .btn{padding:14px;font-size:1rem;}
+      .cgrid{grid-template-columns:30px repeat(7,1fr);font-size:.62rem;}
+      .cc{min-height:40px;}
+      .ch .chd{font-size:.72rem;}
+      .ch .cdy{font-size:.55rem;}
+      .ctime{font-size:.58rem;}
+      .stitle{font-size:.88rem;}
+      .scard .srow{font-size:.83rem;}
+      .conf-box h2{font-size:1rem;}
+      .conf-box p{font-size:.8rem;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="logo">🌸</div>
+    <h1>ご予約受付</h1>
+    <p>プライベートエステサロン</p>
+  </div>
+
+  <div class="steps" id="step-bar">
+    <div class="sitem active" id="st1"><span class="snum">1</span>メニュー</div>
+    <div class="sitem"        id="st2"><span class="snum">2</span>日程</div>
+    <div class="sitem"        id="st3"><span class="snum">3</span>お客様情報</div>
+    <div class="sitem"        id="st4"><span class="snum">4</span>完了</div>
+  </div>
+
+  <div id="sc"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+//  CONFIG  (Claudeが管理・更新)
+// ════════════════════════════════════════
+const OWNER_EMAIL = 'kazu.iguigu@gmail.com';
+const SALON_NAME  = 'プライベートエステサロン';
+
+// Load menus from localStorage (set by owner's management app) with fallback defaults
+const DEFAULT_MENUS = [
+  { id:'fc60', name:'フェイシャルケア',             icon:'✨', dur:60,  price:8000,  desc:'お肌のハリ・ツヤを取り戻す定番ケア' },
+  { id:'fc90', name:'フェイシャルケア プレミアム',  icon:'💎', dur:90,  price:12000, desc:'深部まで潤い補給する特別90分コース' },
+  { id:'lp60', name:'全身リンパマッサージ',          icon:'🌿', dur:60,  price:8000,  desc:'全身のリンパを流してスッキリ' },
+  { id:'lp90', name:'全身リンパマッサージ ロング',   icon:'🌿', dur:90,  price:12000, desc:'時間をかけてじっくり全身ケア' },
+  { id:'bd60', name:'ボディケア',                   icon:'🧖', dur:60,  price:8000,  desc:'全身のコンディションを整える' },
+  { id:'hd30', name:'ハンドケア',                   icon:'🤲', dur:30,  price:4000,  desc:'手先まで美しく潤う' },
+  { id:'ft30', name:'フットケア',                   icon:'🦶', dur:30,  price:4000,  desc:'足元からリフレッシュ' },
+];
+const MENUS = JSON.parse(localStorage.getItem('esthetic_menus') || 'null') || DEFAULT_MENUS;
+
+const WORK_START = 10, WORK_END = 19;        // 10:00–19:00
+const WORK_DAYS  = [1,2,3,4,5,6];            // 月〜土
+const BUFFER     = 30;                        // 前後バッファ（分）
+const DAY_JA     = ['日','月','火','水','木','金','土'];
+
+// Google Calendar 予定（Claudeが定期更新）
+// 最終同期: 2026-03-28
+let gcalBusy = JSON.parse(localStorage.getItem('esthetic_gcal_busy') || 'null') || [
+  { date:'2026-03-28', s:615,  e:735  }, // カット
+  { date:'2026-03-29', s:660,  e:1020 }, // 梅田オフィス
+];
+
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+let selMenu = null, selDate = null, selMin = null;
+let weekStart = getMonday(new Date());
+let step = 1;
+
+// ════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════
+function getMonday(d){ const dt=new Date(d),dw=dt.getDay(); dt.setDate(dt.getDate()+(dw===0?-6:1-dw)); dt.setHours(0,0,0,0); return dt; }
+function addDays(d,n){ const dt=new Date(d); dt.setDate(dt.getDate()+n); return dt; }
+function toDS(d){ return d.toISOString().slice(0,10); }
+function hm(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function fmtDate(ds){
+  const d=new Date(ds+'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日（${DAY_JA[d.getDay()]}）`;
+}
+function getReses(){ return JSON.parse(localStorage.getItem('esthetic_reservations')||'[]'); }
+function saveReses(a){ localStorage.setItem('esthetic_reservations',JSON.stringify(a)); }
+function getCusts(){ return JSON.parse(localStorage.getItem('esthetic_customers')||'[]'); }
+function saveCusts(a){ localStorage.setItem('esthetic_customers',JSON.stringify(a)); }
+
+// ════════════════════════════════════════
+//  AVAILABILITY
+// ════════════════════════════════════════
+function canBook(ds, startMin, menu){
+  const dur=menu.dur;
+  const bs=startMin-BUFFER, be=startMin+dur+BUFFER;
+  // 曜日
+  const wd=new Date(ds+'T00:00:00').getDay();
+  if(!WORK_DAYS.includes(wd)) return false;
+  // 営業時間
+  if(bs<WORK_START*60||be>WORK_END*60) return false;
+  // 過去
+  const now=new Date();
+  if(new Date(ds+'T'+hm(startMin)+':00')<=now) return false;
+  // GCal
+  if(gcalBusy.some(e=>e.date===ds&&e.s<be&&e.e>bs)) return false;
+  // 既存予約（バッファ込みで重複チェック）
+  for(const r of getReses()){
+    if(r.date!==ds||r.status==='cancelled') continue;
+    const [rh,rm]=(r.time||'0:0').split(':').map(Number);
+    const rs=rh*60+rm, re=rs+Number(r.duration||60);
+    const rbs=rs-BUFFER, rbe=re+BUFFER;
+    if(bs<rbe&&be>rbs) return false;
+  }
+  return true;
+}
+
+// ════════════════════════════════════════
+//  STEP MANAGER
+// ════════════════════════════════════════
+function goStep(n){
+  step=n;
+  [1,2,3,4].forEach(i=>{
+    const el=document.getElementById('st'+i);
+    el.className='sitem'+(i===n?' active':i<n?' done':'');
+  });
+  render(n);
+}
+
+function render(n){
+  const el=document.getElementById('sc');
+  if(n===1) el.innerHTML=r1();
+  if(n===2){ el.innerHTML=r2(); buildCal(); }
+  if(n===3) el.innerHTML=r3();
+  // n===4 handled by submitBooking()
+}
+
+// ════════════════════════════════════════
+//  STEP 1 — メニュー選択
+// ════════════════════════════════════════
+function r1(){
+  return `<div class="sc">
+    <div class="stitle">💆 メニューを選んでください</div>
+    ${MENUS.map(m=>`
+      <div class="menu-card${selMenu?.id===m.id?' sel':''}" onclick="pickMenu('${m.id}')">
+        <span class="mico">${m.icon}</span>
+        <div class="minfo">
+          <div class="mname">${m.name}</div>
+          <div class="mdesc">${m.desc}</div>
+          <div class="mtags">
+            <span class="mtag">⏱ ${m.dur}分（前後+各30分）</span>
+            <span class="mtag">¥${m.price.toLocaleString()}</span>
+          </div>
+        </div>
+        ${selMenu?.id===m.id?'<span class="mchk">✓</span>':''}
+      </div>`).join('')}
+    <button class="btn btn-p" onclick="selMenu?goStep(2):alert('メニューを選択してください')">次へ → 日程選択 ▶</button>
+  </div>`;
+}
+function pickMenu(id){ selMenu=MENUS.find(m=>m.id===id); render(1); }
+
+// ════════════════════════════════════════
+//  STEP 2 — カレンダー
+// ════════════════════════════════════════
+function r2(){
+  const we=addDays(weekStart,6);
+  const d0=new Date(toDS(weekStart)+'T00:00:00'), d6=new Date(toDS(we)+'T00:00:00');
+  const lbl=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
+  const selTxt = selDate
+    ? `📅 ${fmtDate(selDate)}　${hm(selMin)}〜${hm(selMin+selMenu.dur)}`
+    : '日程を選んでください';
+  return `<div class="sc">
+    <div class="selinfo">${selMenu.icon} ${selMenu.name}（${selMenu.dur}分）</div>
+    <div class="ibanner">ℹ️ ○ をタップしてご希望のお時間を選んでください<br>※ 施術前後それぞれ30分の準備時間を確保しています</div>
+    <div class="wnav">
+      <button class="wbtn" onclick="shiftW(-1)">◀</button>
+      <div class="wlbl" id="wlbl">${lbl}</div>
+      <button class="wbtn" onclick="shiftW(1)">▶</button>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div class="cgrid" id="bcal"></div>
+    </div>
+    <div class="legend">
+      <span><span class="ldot" style="background:#fce4ec;border:1px solid #f8bbd0;"></span>○ 予約可能</span>
+      <span><span class="ldot" style="background:#eee;"></span>受付不可</span>
+    </div>
+    <div class="selinfo" id="slot-disp" style="margin-top:12px;">${selTxt}</div>
+    <button class="btn btn-p" onclick="selDate?goStep(3):alert('日程を選択してください')">次へ → お客様情報 ▶</button>
+    <button class="btn btn-s" onclick="goStep(1)">◀ メニュー選択に戻る</button>
+  </div>`;
+}
+
+function buildCal(){
+  const days=Array.from({length:7},(_,i)=>addDays(weekStart,i));
+  const today=toDS(new Date());
+  // Slots: every 30 min from WORK_START to WORK_END-30min
+  const slots=[];
+  for(let m=WORK_START*60; m<WORK_END*60; m+=30) slots.push(m);
+
+  let h=`<div class="cc ccor">時間</div>`;
+  days.forEach(d=>{
+    const ds=toDS(d),wd=d.getDay(),isToday=(ds===today),isWork=WORK_DAYS.includes(wd);
+    h+=`<div class="cc ch${isToday?' tod':''}${!isWork?' s-cl':''}">
+      <span class="chd">${d.getMonth()+1}/${d.getDate()}</span>
+      <span class="cdy">${DAY_JA[wd]}曜</span>
+    </div>`;
+  });
+
+  slots.forEach(m=>{
+    h+=`<div class="cc ctime">${hm(m)}</div>`;
+    days.forEach(d=>{
+      const ds=toDS(d),wd=d.getDay(),avail=WORK_DAYS.includes(wd)&&canBook(ds,m,selMenu);
+      const isPick=(selDate===ds&&selMin===m);
+      if(!WORK_DAYS.includes(wd)){
+        h+=`<div class="cc s-cl"></div>`;
+      } else if(avail){
+        h+=`<div class="cc s-ok${isPick?' pick':''}" onclick="pickSlot('${ds}',${m})"></div>`;
+      } else {
+        h+=`<div class="cc s-ng"></div>`;
+      }
+    });
+  });
+  document.getElementById('bcal').innerHTML=h;
+}
+
+function shiftW(dir){
+  weekStart=addDays(weekStart,dir*7);
+  const we=addDays(weekStart,6);
+  const d0=new Date(toDS(weekStart)+'T00:00:00'),d6=new Date(toDS(we)+'T00:00:00');
+  document.getElementById('wlbl').textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
+  buildCal();
+}
+
+function pickSlot(ds,m){
+  selDate=ds; selMin=m;
+  const sd=document.getElementById('slot-disp');
+  if(sd) sd.textContent=`📅 ${fmtDate(ds)}　${hm(m)}〜${hm(m+selMenu.dur)}`;
+  buildCal();
+}
+
+// ════════════════════════════════════════
+//  STEP 3 — お客様情報
+// ════════════════════════════════════════
+function r3(){
+  return `<div class="sc">
+    <div class="selinfo">
+      📅 ${fmtDate(selDate)}　${hm(selMin)}〜${hm(selMin+selMenu.dur)}<br>
+      ${selMenu.icon} ${selMenu.name}
+    </div>
+    <div class="fg"><label>お名前 *</label><input id="fn" placeholder="例：田中 花子"></div>
+    <div class="fg"><label>電話番号</label><input id="fp" type="tel" placeholder="例：090-0000-0000"></div>
+    <div class="fg"><label>ご要望・メモ（任意）</label><textarea id="fm" placeholder="気になること・アレルギー・ご要望など…"></textarea></div>
+    <div class="ibanner">
+      📌 予約は<strong>申し込み</strong>となります。<br>
+      オーナーが確認後、<strong>LINEにて確定のご連絡</strong>をいたします。
+    </div>
+    <button class="btn btn-p" onclick="submit()">🌸 予約申し込みを送る</button>
+    <button class="btn btn-s" onclick="goStep(2)">◀ 日程選択に戻る</button>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+//  STEP 4 — 完了
+// ════════════════════════════════════════
+function submit(){
+  const name=(document.getElementById('fn').value||'').trim();
+  const phone=(document.getElementById('fp').value||'').trim();
+  const memo=(document.getElementById('fm').value||'').trim();
+  if(!name){alert('お名前を入力してください');return;}
+
+  // 顧客登録
+  const custs=getCusts();
+  let c=custs.find(x=>x.name===name);
+  if(!c){c={id:uid(),name,phone,createdAt:new Date().toISOString()};custs.push(c);saveCusts(custs);}
+
+  // 予約保存（申し込み）
+  const endMin=selMin+selMenu.dur;
+  const res={
+    id:uid(), createdAt:new Date().toISOString(),
+    customerId:c.id, customerName:name, phone,
+    menu:selMenu.name, date:selDate,
+    time:hm(selMin), duration:String(selMenu.dur),
+    price:String(selMenu.price),
+    status:'申し込み', memo
+  };
+  const reses=getReses(); reses.push(res); saveReses(reses);
+
+  // LINE確認メッセージ（オーナーが顧客に送る）
+  const lineMsg =
+`【ご予約確定のお知らせ 🌸】
+
+${name} 様
+
+この度はご予約申し込みいただきありがとうございます！
+以下の内容でご予約を確定いたしました。
+
+━━━━━━━━━━━━━━
+📅 ${fmtDate(selDate)}
+⏰ ${hm(selMin)}〜${hm(endMin)}
+💆 ${selMenu.name}
+💰 ¥${selMenu.price.toLocaleString()}
+━━━━━━━━━━━━━━
+
+当日のご来院を心よりお待ちしております 🌸
+ご不明な点はいつでもLINEにてどうぞ！`;
+
+  // 完了画面
+  goStep(4);
+  document.getElementById('sc').innerHTML=`<div class="sc">
+    <div class="conf-box">
+      <div class="cico">🌸</div>
+      <h2>予約申し込みを受け付けました</h2>
+      <p>オーナーが内容を確認のうえ、<br><strong>LINEにて確定のご連絡</strong>をお送りします。<br>しばらくお待ちください。</p>
+    </div>
+    <div class="scard">
+      <div class="srow"><span class="sl">お名前</span><span class="sv">${name} 様</span></div>
+      <div class="srow"><span class="sl">日時</span><span class="sv">${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}</span></div>
+      <div class="srow"><span class="sl">メニュー</span><span class="sv">${selMenu.name}</span></div>
+      <div class="srow"><span class="sl">料金</span><span class="sv">¥${selMenu.price.toLocaleString()}</span></div>
+      ${memo?`<div class="srow"><span class="sl">メモ</span><span class="sv">${memo}</span></div>`:''}
+    </div>
+    <div class="line-box">
+      <h3>📋 オーナーからLINEで届く確定メッセージ（プレビュー）</h3>
+      <div class="lmsg" id="lmsg">${lineMsg}</div>
+      <button class="cpybtn" onclick="copyMsg()">📋 コピーする</button>
+    </div>
+    <button class="btn btn-s" onclick="location.reload()">別の予約を申し込む</button>
+  </div>`;
+
+  // メール通知（mailto）
+  sendMailNotice(name, phone, memo, endMin);
+}
+
+function sendMailNotice(name, phone, memo, endMin){
+  const sub=encodeURIComponent(`【予約申し込み】${name}様 - ${selMenu.name} ${selDate}`);
+  const body=encodeURIComponent(
+`新しい予約申し込みが届きました。
+
+━━━ 申し込み内容 ━━━
+お名前  : ${name}
+電話    : ${phone||'未記入'}
+日時    : ${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}
+メニュー: ${selMenu.name}（${selMenu.dur}分）
+料金    : ¥${selMenu.price.toLocaleString()}
+メモ    : ${memo||'なし'}
+申込日時: ${new Date().toLocaleString('ja-JP')}
+━━━━━━━━━━━━━━━
+
+▼ 確認後、以下のLINEメッセージをお客様にお送りください。
+
+【ご予約確定のお知らせ 🌸】
+${name} 様
+
+ご予約を確定いたしました。
+
+📅 ${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}
+💆 ${selMenu.name}
+💰 ¥${selMenu.price.toLocaleString()}
+
+当日お待ちしております 🌸`);
+  // 少し遅延してメールを開く（完了画面表示後）
+  setTimeout(()=>{
+    const a=document.createElement('a');
+    a.href=`mailto:${OWNER_EMAIL}?subject=${sub}&body=${body}`;
+    a.click();
+  }, 800);
+}
+
+function copyMsg(){
+  const txt=document.getElementById('lmsg').innerText;
+  const copy=s=>{const t=document.createElement('textarea');t.value=s;document.body.appendChild(t);t.select();document.execCommand('copy');document.body.removeChild(t);};
+  (navigator.clipboard?navigator.clipboard.writeText(txt).catch(()=>copy(txt)):Promise.resolve(copy(txt)))
+    .then(()=>{const b=document.querySelector('.cpybtn');b.textContent='✅ コピーしました！';setTimeout(()=>b.textContent='📋 コピーする',2200);});
+}
+
+// ════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════
+goStep(1);
+</script>
+</body>
+</html>
