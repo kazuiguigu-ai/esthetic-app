@@ -125,6 +125,15 @@
       font-weight: 800;
       color: var(--accent);
     }
+    .stat-card-pending {
+      background: linear-gradient(135deg, #fff8f0, #fff3e0);
+      border: 2px solid #ffb74d;
+      animation: pending-pulse 2s ease-in-out infinite;
+    }
+    @keyframes pending-pulse {
+      0%, 100% { box-shadow: 0 2px 12px rgba(230,81,0,0.10); }
+      50%       { box-shadow: 0 4px 20px rgba(230,81,0,0.28); }
+    }
     .stat-card .stat-label {
       font-size: 0.8rem;
       color: var(--text-light);
@@ -1668,26 +1677,37 @@ function renderDashboard() {
     ? kartes.filter(k => k.date && k.date.startsWith(selectedMonth))
     : kartes;
 
-  const totalCustomers = customers.length;
-  const totalKartes    = filteredKartes.length;
-  const totalRevenue   = filteredKartes.reduce((s, k) => s + (Number(k.price) || 0), 0);
-  const thisMonth      = new Date().toISOString().slice(0, 7);
+  const totalCustomers  = customers.length;
+  const totalKartes     = filteredKartes.length;
+  const totalRevenue    = filteredKartes.reduce((s, k) => s + (Number(k.price) || 0), 0);
+  const pad2 = n => String(n).padStart(2,'0');
+  const today = new Date();
+  const thisMonth = `${today.getFullYear()}-${pad2(today.getMonth()+1)}`;
   const monthLabel     = selectedMonth || thisMonth;
   const monthKartes    = kartes.filter(k => k.date && k.date.startsWith(monthLabel)).length;
+  const pendingCount   = reservations.filter(r => r.status === '申し込み').length;
 
   const periodLabel = selectedMonth
     ? selectedMonth.replace('-', '年') + '月'
     : '累計';
   const monthStatLabel = selectedMonth ? `${periodLabel}の施術数` : '今月の施術数';
 
+  const pendingCard = pendingCount > 0
+    ? `<div class="stat-card stat-card-pending" onclick="showView('reservations')" style="cursor:pointer;">
+        <div class="stat-num" style="color:#e65100;">${pendingCount}</div>
+        <div class="stat-label">🔔 未確定の申し込み</div>
+        <div style="font-size:0.7rem;color:#e65100;margin-top:4px;font-weight:700;">タップして確認 →</div>
+      </div>`
+    : `<div class="stat-card">
+        <div class="stat-num" style="color:#43a047;">0</div>
+        <div class="stat-label">✅ 未確定の申し込み</div>
+      </div>`;
+
   document.getElementById('stats-grid').innerHTML = `
+    ${pendingCard}
     <div class="stat-card">
       <div class="stat-num">${totalCustomers}</div>
       <div class="stat-label">👥 登録顧客数</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-num">${totalKartes}</div>
-      <div class="stat-label">📋 ${selectedMonth ? periodLabel+'の施術数' : '総施術数'}</div>
     </div>
     <div class="stat-card">
       <div class="stat-num">${selectedMonth ? totalKartes : monthKartes}</div>
