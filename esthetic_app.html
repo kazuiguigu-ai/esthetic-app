@@ -396,7 +396,11 @@
 
     /* ===== WEEKLY CALENDAR ===== */
     .week-nav {
-      display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+      display: flex; align-items: center; gap: 10px; margin-bottom: 8px;
+    }
+    .gcal-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px; justify-content: flex-end;
     }
     .week-nav .week-label {
       font-size: 1rem; font-weight: 800; color: var(--accent); flex: 1; text-align: center;
@@ -1081,8 +1085,10 @@
       <button onclick="shiftWeek(-1)">◀</button>
       <div class="week-label" id="cal-week-label"></div>
       <button onclick="shiftWeek(1)">▶</button>
+    </div>
+    <div class="gcal-row">
       <button class="gcal-btn" onclick="syncGCal()" id="gcal-sync-btn">🔄 GCal同期</button>
-      <button class="gcal-btn" onclick="showGCalSettings()" title="GCal設定" style="padding:6px 9px;font-size:1rem;">⚙️</button>
+      <button class="gcal-btn gcal-settings-btn" onclick="showGCalSettings()" title="GCal設定">⚙️ 設定</button>
     </div>
     <div class="week-grid-wrap">
       <div class="week-grid" id="owner-week-grid"></div>
