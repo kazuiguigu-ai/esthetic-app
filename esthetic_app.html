@@ -960,6 +960,9 @@
     }
     .login-hint { font-size: .72rem; color: var(--text-light); margin-top: 18px; }
   </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -1425,6 +1428,50 @@ function togglePw() {
   }
 })();
 
+// ===== FIREBASE =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAr5_qbv3y2Su-VbpscPxi2oJEFFULj59E",
+  authDomain: "esthetic-app-bc06c.firebaseapp.com",
+  projectId: "esthetic-app-bc06c",
+  storageBucket: "esthetic-app-bc06c.firebasestorage.app",
+  messagingSenderId: "828759623015",
+  appId: "1:828759623015:web:4be6d33f8c44868758dbc2"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const FS  = db.collection('esthetic_app'); // Firestoreのコレクション名
+
+// Firestoreへ書き込み（非同期・バックグラウンド）
+function fsSave(docName, data) {
+  FS.doc(docName).set({ data }).catch(err => console.warn('Firestore書き込みエラー:', err));
+}
+
+// Firestoreから全データを読み込む
+async function fsLoad() {
+  try {
+    const [cSnap, kSnap, rSnap, mSnap] = await Promise.all([
+      FS.doc('customers').get(),
+      FS.doc('kartes').get(),
+      FS.doc('reservations').get(),
+      FS.doc('menus').get(),
+    ]);
+    if (cSnap.exists)  { customers    = cSnap.data().data || [];  localStorage.setItem('esthetic_customers',    JSON.stringify(customers)); }
+    if (kSnap.exists)  {
+      // Firestoreのカルテデータと、ローカルの写真データをマージ
+      const fsKartes = kSnap.data().data || [];
+      const lcKartes = JSON.parse(localStorage.getItem('esthetic_kartes') || '[]');
+      const photoMap = {};
+      lcKartes.forEach(k => { photoMap[k.id] = { photoBefore: k.photoBefore, photoAfter: k.photoAfter }; });
+      kartes = fsKartes.map(k => ({ ...k, ...(photoMap[k.id] || {}) }));
+      localStorage.setItem('esthetic_kartes', JSON.stringify(kartes));
+    }
+    if (rSnap.exists)  { reservations = rSnap.data().data || [];  localStorage.setItem('esthetic_reservations', JSON.stringify(reservations)); }
+    if (mSnap.exists)  { menus        = mSnap.data().data || [];  localStorage.setItem('esthetic_menus',        JSON.stringify(menus)); }
+  } catch(err) {
+    console.warn('Firestore読み込みエラー（ローカルデータを使用）:', err);
+  }
+}
+
 // ===== DATA STORE =====
 let customers = JSON.parse(localStorage.getItem('esthetic_customers') || '[]');
 let kartes    = JSON.parse(localStorage.getItem('esthetic_kartes')    || '[]');
@@ -1442,7 +1489,7 @@ const DEFAULT_MENUS = [
 let menus = JSON.parse(localStorage.getItem('esthetic_menus') || 'null') || DEFAULT_MENUS.map(m => ({...m}));
 function saveMenus() {
   localStorage.setItem('esthetic_menus', JSON.stringify(menus));
-  // share with booking.html via same key
+  fsSave('menus', menus);
 }
 
 let currentCustomerId = null;
@@ -1452,6 +1499,9 @@ let editingKarteId    = null;
 function save() {
   localStorage.setItem('esthetic_customers', JSON.stringify(customers));
   localStorage.setItem('esthetic_kartes',    JSON.stringify(kartes));
+  fsSave('customers', customers);
+  // カルテは写真を除いてFirestoreに保存（写真はlocalStorageのみ）
+  fsSave('kartes', kartes.map(k => ({ ...k, photoBefore: null, photoAfter: null })));
 }
 
 function uid() {
@@ -2250,6 +2300,9 @@ function saveAll() {
   localStorage.setItem('esthetic_customers',    JSON.stringify(customers));
   localStorage.setItem('esthetic_kartes',       JSON.stringify(kartes));
   localStorage.setItem('esthetic_reservations', JSON.stringify(reservations));
+  fsSave('customers', customers);
+  fsSave('kartes', kartes.map(k => ({ ...k, photoBefore: null, photoAfter: null })));
+  fsSave('reservations', reservations);
 }
 
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
@@ -2496,8 +2549,12 @@ function restoreData(event) {
 }
 
 // ===== INIT =====
-refreshMenuSelects();
-renderDashboard();
+// Firestoreから最新データを読み込んでから画面を描画
+(async () => {
+  await fsLoad();
+  refreshMenuSelects();
+  renderDashboard();
+})();
 </script>
 </body>
 </html>
