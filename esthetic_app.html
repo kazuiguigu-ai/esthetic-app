@@ -136,6 +136,27 @@
       color: var(--text);
       margin-bottom: 10px;
     }
+
+    /* ── Backup card ── */
+    .backup-card {
+      background: var(--white); border-radius: 14px;
+      border: 1.5px solid var(--pink-light);
+      padding: 16px 18px; margin-top: 14px;
+    }
+    .backup-card-title {
+      font-size: .88rem; font-weight: 800; color: var(--text);
+      margin-bottom: 6px;
+    }
+    .backup-card-desc {
+      font-size: .76rem; color: var(--text-light);
+      margin-bottom: 14px; line-height: 1.6;
+    }
+    .backup-btns {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .backup-btns .btn {
+      flex: 1; min-width: 120px; padding: 11px; font-size: .85rem;
+    }
     .recent-item {
       display: flex;
       align-items: center;
@@ -1016,6 +1037,17 @@
       <div class="recent-title" id="recent-kartes-title">📋 最近の施術</div>
       <div id="recent-kartes"></div>
     </div>
+
+    <!-- バックアップ -->
+    <div class="backup-card">
+      <div class="backup-card-title">🔒 データのバックアップ・復元</div>
+      <div class="backup-card-desc">顧客・カルテ・予約データをJSONファイルに保存できます。機種変更や万が一のデータ消失に備えて定期的にバックアップをおすすめします。</div>
+      <div class="backup-btns">
+        <button class="btn btn-primary" onclick="backupData()">📥 バックアップ保存</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('restore-input').click()">📤 バックアップから復元</button>
+      </div>
+      <input type="file" id="restore-input" accept=".json" style="display:none" onchange="restoreData(event)" />
+    </div>
   </div>
 
   <!-- ===== CUSTOMERS LIST ===== -->
@@ -1348,7 +1380,6 @@
 // ===== AUTH =====
 // パスワードはSHA-256ハッシュで保管しています。
 // 変更したい場合はClaude(AI)に「パスワードを〇〇に変えて」とお伝えください。
-// 現在のパスワード: 
 const AUTH_HASH = 'c714716243420443e34f514ec981bcfed8ee6b6d6e6c4df41b58d00854fdb89d';
 
 async function sha256(str) {
@@ -2405,6 +2436,63 @@ function updateBottomNav(name) {
   document.querySelectorAll('.bnav-item').forEach(btn => btn.classList.remove('active'));
   const active = document.getElementById('bnav-' + name);
   if (active) active.classList.add('active');
+}
+
+// ===== BACKUP & RESTORE =====
+function backupData() {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    customers:    JSON.parse(localStorage.getItem('esthetic_customers')    || '[]'),
+    kartes:       JSON.parse(localStorage.getItem('esthetic_kartes')       || '[]'),
+    reservations: JSON.parse(localStorage.getItem('esthetic_reservations') || '[]'),
+    menus:        JSON.parse(localStorage.getItem('esthetic_menus')        || 'null'),
+  };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href     = url;
+  a.download = `esthetic_backup_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('📥 バックアップを保存しました');
+}
+
+function restoreData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.version || !Array.isArray(data.customers)) {
+        alert('このファイルはバックアップファイルではありません。'); return;
+      }
+      if (!confirm(`バックアップデータを復元します。\n\n・顧客: ${data.customers.length}件\n・カルテ: ${data.kartes?.length || 0}件\n・予約: ${data.reservations?.length || 0}件\n\n現在のデータは上書きされます。よろしいですか？`)) return;
+
+      localStorage.setItem('esthetic_customers',    JSON.stringify(data.customers    || []));
+      localStorage.setItem('esthetic_kartes',       JSON.stringify(data.kartes       || []));
+      localStorage.setItem('esthetic_reservations', JSON.stringify(data.reservations || []));
+      if (data.menus) localStorage.setItem('esthetic_menus', JSON.stringify(data.menus));
+
+      // メモリ上のデータも更新
+      customers    = data.customers    || [];
+      kartes       = data.kartes       || [];
+      reservations = data.reservations || [];
+      if (data.menus) menus = data.menus;
+
+      refreshMenuSelects();
+      renderDashboard();
+      toast('📤 データを復元しました', 'success');
+    } catch(err) {
+      alert('ファイルの読み込みに失敗しました。正しいバックアップファイルを選択してください。');
+    }
+    // input をリセット（同じファイルを再選択できるように）
+    event.target.value = '';
+  };
+  reader.readAsText(file);
 }
 
 // ===== INIT =====
