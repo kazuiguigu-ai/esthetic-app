@@ -2402,14 +2402,15 @@ async function syncGCal() {
   const btn = document.getElementById('gcal-sync-btn');
   if (btn) { btn.textContent = '⏳ 同期中...'; btn.disabled = true; }
   try {
-    // CORSプロキシ経由でiCalを取得
-    const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(GCAL_ICAL_URL);
-    const res = await fetch(proxyUrl);
+    // キャッシュバスティング付きでCORSプロキシ経由取得
+    const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(GCAL_ICAL_URL)
+                   + '&_=' + Date.now();
+    const res = await fetch(proxyUrl, { cache: 'no-store' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const icalText = await res.text();
     if (!icalText.includes('BEGIN:VCALENDAR')) throw new Error('iCalデータが取得できませんでした');
 
-    const newBusy = _parseICalBusy(icalText);
+    const { busy: newBusy, debug } = _parseICalBusy(icalText);
     gcalBusy = newBusy;
     const now = new Date();
     gcalLastSync = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2419,7 +2420,18 @@ async function syncGCal() {
     FS.doc('settings').set({ gcal_busy: newBusy, gcal_last_sync: gcalLastSync }, { merge: true })
       .catch(err => console.warn('GCal Firestore保存エラー:', err));
     renderOwnerCalendar();
-    toast(`✅ GCal同期完了 ${newBusy.length}件取得（${gcalLastSync}）`, 'success');
+
+    // 詳細ログをコンソールに出力（除外理由の確認用）
+    console.log('[GCal同期] 取得結果:', debug);
+
+    // 除外があった場合は内訳をトーストに表示
+    let msg = `✅ GCal同期完了（${gcalLastSync}）　営業時間内: ${newBusy.length}件`;
+    const excluded = [];
+    if (debug.skippedAllDay  > 0) excluded.push(`終日${debug.skippedAllDay}件`);
+    if (debug.skippedFree    > 0) excluded.push(`空き扱い${debug.skippedFree}件`);
+    if (debug.skippedOutside > 0) excluded.push(`営業外${debug.skippedOutside}件`);
+    if (excluded.length > 0) msg += `　除外: ${excluded.join('・')}`;
+    toast(msg, 'success');
   } catch(e) {
     toast('GCal同期エラー: ' + e.message, 'error');
   } finally {
@@ -2433,26 +2445,39 @@ function _parseICalBusy(text) {
   const raw = text.replace(/\r\n[ \t]/g, '').replace(/\r/g, '');
   const lines = raw.split('\n');
   const result = [];
+  const debug = { total: 0, skippedAllDay: 0, skippedFree: 0, skippedOutside: 0, skippedParseFail: 0 };
   let ev = null;
   for (const line of lines) {
     if (line === 'BEGIN:VEVENT') { ev = {}; continue; }
     if (line === 'END:VEVENT') {
-      if (ev && ev.start && !ev.transparent) {
-        const s = _parseICalDt(ev.start);
-        const e = _parseICalDt(ev.end || ev.start);
-        if (s && e) {
-          const sm = s.getHours() * 60 + s.getMinutes();
-          const em = e.getHours() * 60 + e.getMinutes();
-          // 終日イベントはスキップ（日付のみ形式）
-          if (ev.startIsDate) { ev = null; continue; }
-          if (!(em <= OPEN || sm >= CLOSE)) {
-            const pad2 = n => String(n).padStart(2,'0');
-            result.push({
-              date: `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`,
-              startMin: Math.max(sm, OPEN),
-              endMin:   Math.min(em, CLOSE),
-              title:    ev.summary || ''
-            });
+      if (ev && ev.start) {
+        debug.total++;
+        if (ev.transparent) {
+          debug.skippedFree++;
+        } else if (ev.startIsDate) {
+          debug.skippedAllDay++;
+        } else {
+          const s = _parseICalDt(ev.start);
+          const e = _parseICalDt(ev.end || ev.start);
+          if (!s || !e) {
+            debug.skippedParseFail++;
+            console.warn('[GCal] 日時パース失敗:', ev.summary, ev.start, ev.end);
+          } else {
+            const sm = s.getHours() * 60 + s.getMinutes();
+            const em = e.getHours() * 60 + e.getMinutes();
+            if (em <= OPEN || sm >= CLOSE) {
+              debug.skippedOutside++;
+              console.log('[GCal] 営業時間外のためスキップ:', ev.summary, `${sm}〜${em}分`);
+            } else {
+              const pad2 = n => String(n).padStart(2,'0');
+              result.push({
+                date:     `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`,
+                startMin: Math.max(sm, OPEN),
+                endMin:   Math.min(em, CLOSE),
+                title:    ev.summary || ''
+              });
+              console.log('[GCal] 追加:', ev.summary, `${pad2(s.getMonth()+1)}/${pad2(s.getDate())} ${sm}〜${em}分`);
+            }
           }
         }
       }
@@ -2468,11 +2493,11 @@ function _parseICalBusy(text) {
     if (line.startsWith('DTEND')) {
       ev.end = line.includes(':') ? line.split(':').slice(1).join(':') : '';
     }
-    if (line.startsWith('SUMMARY:'))          ev.summary = line.substring(8).trim();
-    if (line === 'TRANSP:TRANSPARENT')         ev.transparent = true;
-    if (line.startsWith('STATUS:CANCELLED'))   ev.transparent = true;
+    if (line.startsWith('SUMMARY:'))        ev.summary = line.substring(8).trim();
+    if (line === 'TRANSP:TRANSPARENT')       ev.transparent = true;
+    if (line.startsWith('STATUS:CANCELLED')) ev.transparent = true;
   }
-  return result;
+  return { busy: result, debug };
 }
 
 function _parseICalDt(str) {
