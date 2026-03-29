@@ -223,9 +223,14 @@ function fmtDate(ds){
 function getReses(){ return JSON.parse(localStorage.getItem('esthetic_reservations')||'[]'); }
 function saveReses(a){
   localStorage.setItem('esthetic_reservations', JSON.stringify(a));
-  // Firestoreにも同期（PCなど別デバイスに即反映）
-  FS.doc('reservations').set({ data: a })
-    .catch(err => console.warn('Firestore予約保存エラー:', err));
+  // Firestoreの既存データを読み込んでマージしてから保存（データ上書き防止）
+  FS.doc('reservations').get().then(snap => {
+    const fsData = snap.exists ? (snap.data().data || []) : [];
+    // ローカルにないFirestoreの予約を保持（他デバイス分）
+    const localIds = new Set(a.map(r => r.id));
+    const merged = [...a, ...fsData.filter(r => !localIds.has(r.id))];
+    return FS.doc('reservations').set({ data: merged });
+  }).catch(err => console.warn('Firestore予約保存エラー:', err));
 }
 function getCusts(){ return JSON.parse(localStorage.getItem('esthetic_customers')||'[]'); }
 function saveCusts(a){ localStorage.setItem('esthetic_customers',JSON.stringify(a)); }
