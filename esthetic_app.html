@@ -1350,6 +1350,10 @@
     <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:14px;">以下のメッセージをコピーしてLINEでお客様に送ってください。</p>
     <div class="line-confirm-msg" id="line-confirm-msg"></div>
     <button class="line-copy-btn" onclick="copyLineConfirmMsg()">📋 コピーしてLINEで送る</button>
+    <a id="gcal-confirm-btn" href="#" target="_blank" rel="noopener"
+       style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;padding:11px;background:#fff;color:#1a73e8;border:2px solid #1a73e8;border-radius:18px;font-weight:800;font-size:.88rem;text-decoration:none;touch-action:manipulation;">
+      📅 Googleカレンダーに追加する
+    </a>
     <div class="form-actions" style="margin-top:14px;">
       <button class="btn btn-primary" onclick="doConfirmReservation()">✅ 予約を確定する</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-line-confirm')">閉じる</button>
@@ -2257,6 +2261,20 @@ ${r.price ? `💰 ¥${Number(r.price).toLocaleString()}` : ''}
 ご不明な点はいつでもLINEにてどうぞ！`;
 
   document.getElementById('line-confirm-msg').textContent = msg;
+
+  // Googleカレンダー登録URL
+  const pad = n => String(n).padStart(2,'0');
+  const [y, mo, dd] = r.date.split('-');
+  const startMin = rh*60 + rm;
+  const sH=pad(Math.floor(startMin/60)), sM=pad(startMin%60);
+  const eH=pad(Math.floor(endMin/60)),   eM=pad(endMin%60);
+  const gcalStart = `${y}${mo}${dd}T${sH}${sM}00`;
+  const gcalEnd   = `${y}${mo}${dd}T${eH}${eM}00`;
+  const gcalTitle = encodeURIComponent(`${r.menu}（${r.customerName}様）`);
+  const gcalDetail= encodeURIComponent(`お名前：${r.customerName}\nメニュー：${r.menu}\n${r.price?`料金：¥${Number(r.price).toLocaleString()}`:''}${r.memo?`\nメモ：${r.memo}`:''}`);
+  const gcalUrl   = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${gcalTitle}&dates=${gcalStart}/${gcalEnd}&details=${gcalDetail}`;
+  document.getElementById('gcal-confirm-btn').href = gcalUrl;
+
   openModal('modal-line-confirm');
 }
 
