@@ -8,6 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ご予約">
   <title>ご予約受付 🌸</title>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <style>
     :root {
       --pink:#f4a7b9; --pink-l:#fce4ec; --pink-m:#f8bbd0;
@@ -155,8 +156,12 @@
 // ════════════════════════════════════════
 //  CONFIG  (Claudeが管理・更新)
 // ════════════════════════════════════════
-const OWNER_EMAIL = 'kazu.iguigu@gmail.com';
-const SALON_NAME  = 'プライベートエステサロン';
+const OWNER_EMAIL   = 'kazu.iguigu@gmail.com';
+const SALON_NAME    = 'プライベートエステサロン';
+const EJS_PUBLIC_KEY  = 'UmbKYxel1v5ORfzgz';
+const EJS_SERVICE_ID  = 'service_48skzoh';
+const EJS_TEMPLATE_ID = 'template_rjo2z9f';
+emailjs.init(EJS_PUBLIC_KEY);
 
 // Load menus from localStorage (set by owner's management app) with fallback defaults
 const DEFAULT_MENUS = [
@@ -450,23 +455,17 @@ ${name} 様
 }
 
 function sendMailNotice(name, phone, memo, endMin){
-  const sub=encodeURIComponent(`【予約申し込み】${name}様 - ${selMenu.name} ${selDate}`);
-  const body=encodeURIComponent(
-`新しい予約申し込みが届きました。
-
-━━━ 申し込み内容 ━━━
-お名前  : ${name}
-電話    : ${phone||'未記入'}
-日時    : ${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}
-メニュー: ${selMenu.name}（${selMenu.dur}分）
-料金    : ¥${selMenu.price.toLocaleString()}
-メモ    : ${memo||'なし'}
-申込日時: ${new Date().toLocaleString('ja-JP')}
-━━━━━━━━━━━━━━━
-
-▼ 確認後、以下のLINEメッセージをお客様にお送りください。
-
-【ご予約確定のお知らせ 🌸】
+  const templateParams = {
+    to_email:     OWNER_EMAIL,
+    customer_name: name,
+    phone:        phone || '未記入',
+    date_time:    `${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}`,
+    menu_name:    `${selMenu.name}（${selMenu.dur}分）`,
+    price:        `¥${selMenu.price.toLocaleString()}`,
+    memo:         memo || 'なし',
+    booked_at:    new Date().toLocaleString('ja-JP'),
+    line_message:
+`【ご予約確定のお知らせ 🌸】
 ${name} 様
 
 ご予約を確定いたしました。
@@ -475,13 +474,12 @@ ${name} 様
 💆 ${selMenu.name}
 💰 ¥${selMenu.price.toLocaleString()}
 
-当日お待ちしております 🌸`);
-  // 少し遅延してメールを開く（完了画面表示後）
-  setTimeout(()=>{
-    const a=document.createElement('a');
-    a.href=`mailto:${OWNER_EMAIL}?subject=${sub}&body=${body}`;
-    a.click();
-  }, 800);
+当日お待ちしております 🌸`,
+  };
+
+  emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, templateParams)
+    .then(() => console.log('メール送信成功'))
+    .catch(err => console.warn('メール送信失敗:', err));
 }
 
 function copyMsg(){
