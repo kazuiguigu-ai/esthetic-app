@@ -963,6 +963,8 @@
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <!-- Google Identity Services (GCal OAuth) -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -1081,7 +1083,8 @@
       <button onclick="shiftWeek(-1)">◀</button>
       <div class="week-label" id="cal-week-label"></div>
       <button onclick="shiftWeek(1)">▶</button>
-      <button class="gcal-btn" onclick="showGCalSyncTip()">🔄 GCal同期</button>
+      <button class="gcal-btn" onclick="syncGCal()" id="gcal-sync-btn">🔄 GCal同期</button>
+      <button class="gcal-btn" onclick="showGCalSettings()" title="GCal設定" style="padding:6px 9px;font-size:1rem;">⚙️</button>
     </div>
     <div class="week-grid-wrap">
       <div class="week-grid" id="owner-week-grid"></div>
@@ -1369,6 +1372,34 @@
     <div class="form-actions">
       <button class="btn btn-danger" id="confirm-ok">削除する</button>
       <button class="btn btn-secondary" onclick="closeModal('modal-confirm')">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- GCal Settings Modal -->
+<div class="modal-overlay" id="modal-gcal-settings">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title">🗓️ Googleカレンダー連携設定</div>
+    <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:14px;">
+      一度設定すると「GCal同期」ボタン一押しで自動更新できます。<br>
+      Google Cloud Console で OAuth クライアントIDを作成し、<br>
+      <strong>承認済みJavaScript生成元</strong>に<br>
+      <code style="font-size:0.78rem;background:#f5f5f5;padding:2px 5px;border-radius:4px;">https://kazuiguigu-ai.github.io</code><br>
+      を追加してください。
+    </p>
+    <div class="form-group">
+      <label class="form-label">OAuth クライアントID <span style="color:red;">*</span></label>
+      <input type="text" id="gcal-client-id-input" class="form-control"
+             placeholder="〇〇〇.apps.googleusercontent.com" style="font-size:0.82rem;" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">カレンダーID（省略可 = メインカレンダー）</label>
+      <input type="text" id="gcal-calendar-id-input" class="form-control"
+             placeholder="primary または your@email.com" style="font-size:0.82rem;" />
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-primary" onclick="saveGCalSettings()">💾 保存して同期</button>
+      <button class="btn btn-secondary" onclick="closeModal('modal-gcal-settings')">キャンセル</button>
     </div>
   </div>
 </div>
@@ -1975,15 +2006,23 @@ const BUFFER     = 30; // 前後準備時間（分）
 const DAY_JA  = ['日','月','火','水','木','金','土'];
 const DAY_EN  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-// ── GCal busy data (Claudeが取得・更新) ──
-// 更新日: 2026-03-28  対象: 2026-03-28 〜 2026-04-11
+// ── GCal busy data ──
+// GCal同期ボタンを押すと自動更新。localStorage "gcal_busy_cache" に保存されます。
 let gcalBusy = [
-  { date:"2026-03-28", startMin:615,  endMin:735,  title:"カット" },
   { date:"2026-03-29", startMin:660,  endMin:1020, title:"梅田オフィス" },
-  { date:"2026-03-29", startMin:660,  endMin:735,  title:"Claude触ってみる会" }
-  // 2026-03-30 ClaudeCode勉強会 20:30- は営業外のため除外
+  { date:"2026-03-29", startMin:660,  endMin:735,  title:"Claude触ってみる会" },
+  { date:"2026-04-01", startMin:780,  endMin:870,  title:"フェイシャルケア プレミアム（qwe様）" },
+  { date:"2026-04-18", startMin:660,  endMin:720,  title:"楽天感謝デー" },
+  { date:"2026-04-20", startMin:690,  endMin:750,  title:"口座振替" }
 ];
-let gcalLastSync = "2026-03-28";
+let gcalLastSync = "2026-03-29";
+// localStorage にキャッシュがあれば上書き
+(function() {
+  const cached = localStorage.getItem('gcal_busy_cache');
+  const cachedSync = localStorage.getItem('gcal_last_sync');
+  if (cached) { try { gcalBusy = JSON.parse(cached); } catch(e) {} }
+  if (cachedSync) gcalLastSync = cachedSync;
+})();
 
 let calWeekStart   = getMonday(new Date());
 let custWeekStart  = getMonday(new Date());
@@ -2297,8 +2336,110 @@ function doConfirmReservation() {
   renderReservations();
 }
 
-function showGCalSyncTip() {
-  toast(`最終同期: ${gcalLastSync}　Claudeに「Googleカレンダーを更新して」と話しかけてください 🤖`,'success');
+// ── GCal OAuth 同期 ──
+let GCAL_CLIENT_ID   = localStorage.getItem('gcal_client_id')   || '';
+let GCAL_CALENDAR_ID = localStorage.getItem('gcal_calendar_id') || 'primary';
+let _gcalTokenClient = null;
+
+function showGCalSettings() {
+  document.getElementById('gcal-client-id-input').value  = GCAL_CLIENT_ID;
+  document.getElementById('gcal-calendar-id-input').value = (GCAL_CALENDAR_ID === 'primary') ? '' : GCAL_CALENDAR_ID;
+  openModal('modal-gcal-settings');
+}
+
+function saveGCalSettings() {
+  const cid   = document.getElementById('gcal-client-id-input').value.trim();
+  const calId = document.getElementById('gcal-calendar-id-input').value.trim() || 'primary';
+  if (!cid) { toast('クライアントIDを入力してください', 'error'); return; }
+  GCAL_CLIENT_ID   = cid;
+  GCAL_CALENDAR_ID = calId;
+  localStorage.setItem('gcal_client_id',   cid);
+  localStorage.setItem('gcal_calendar_id', calId);
+  closeModal('modal-gcal-settings');
+  _gcalTokenClient = null; // クライアントIDが変わったのでリセット
+  syncGCal();
+}
+
+function syncGCal() {
+  if (!GCAL_CLIENT_ID) {
+    showGCalSettings();
+    return;
+  }
+  const btn = document.getElementById('gcal-sync-btn');
+  if (btn) { btn.textContent = '⏳ 同期中...'; btn.disabled = true; }
+
+  try {
+    if (!_gcalTokenClient) {
+      _gcalTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GCAL_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/calendar.readonly',
+        callback: _onGCalToken,
+        error_callback: (e) => {
+          const msg = e.message || e.type || '不明なエラー';
+          toast('GCal認証エラー: ' + msg, 'error');
+          _gcalResetBtn();
+        }
+      });
+    }
+    _gcalTokenClient.requestAccessToken({ prompt: '' });
+  } catch(e) {
+    toast('GCal初期化エラー: ' + e.message, 'error');
+    _gcalResetBtn();
+  }
+}
+
+function _gcalResetBtn() {
+  const btn = document.getElementById('gcal-sync-btn');
+  if (btn) { btn.textContent = '🔄 GCal同期'; btn.disabled = false; }
+}
+
+async function _onGCalToken(response) {
+  if (response.error) {
+    toast('GCal認証エラー: ' + response.error, 'error');
+    _gcalResetBtn();
+    return;
+  }
+  try {
+    const token   = response.access_token;
+    const today   = new Date(); today.setHours(0,0,0,0);
+    const future  = new Date(today.getTime() + 90 * 86400000);
+    const timeMin = today.toISOString();
+    const timeMax = future.toISOString();
+    const calId   = encodeURIComponent(GCAL_CALENDAR_ID);
+    const url     = `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=250`;
+
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    const OPEN = 10 * 60, CLOSE = 19 * 60;
+    const newBusy = [];
+    for (const ev of (data.items || [])) {
+      if (ev.transparency === 'transparent') continue; // 予定あり(透明)は除外
+      if (!ev.start?.dateTime) continue;               // 終日イベントは除外
+      const s  = new Date(ev.start.dateTime);
+      const e  = new Date(ev.end.dateTime);
+      const sm = s.getHours() * 60 + s.getMinutes();
+      const em = e.getHours() * 60 + e.getMinutes();
+      if (em <= OPEN || sm >= CLOSE) continue;         // 営業時間外は除外
+      const pad2 = n => String(n).padStart(2,'0');
+      const dateStr = `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`;
+      newBusy.push({ date: dateStr, startMin: Math.max(sm, OPEN), endMin: Math.min(em, CLOSE), title: ev.summary || '' });
+    }
+
+    gcalBusy = newBusy;
+    const now = new Date();
+    gcalLastSync = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+    localStorage.setItem('gcal_busy_cache', JSON.stringify(gcalBusy));
+    localStorage.setItem('gcal_last_sync',  gcalLastSync);
+
+    renderOwnerCalendar();
+    toast(`✅ GCal同期完了 ${newBusy.length}件取得（${gcalLastSync}）`, 'success');
+  } catch(e) {
+    toast('GCalイベント取得エラー: ' + e.message, 'error');
+  } finally {
+    _gcalResetBtn();
+  }
 }
 
 // Patch showView for new views
