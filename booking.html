@@ -197,12 +197,8 @@ const WORK_DAYS  = [1,2,3,4,5,6];            // 月〜土
 const BUFFER     = 30;                        // 前後バッファ（分）
 const DAY_JA     = ['日','月','火','水','木','金','土'];
 
-// Google Calendar 予定（Claudeが定期更新）
-// 最終同期: 2026-03-28
-let gcalBusy = JSON.parse(localStorage.getItem('esthetic_gcal_busy') || 'null') || [
-  { date:'2026-03-28', s:615,  e:735  }, // カット
-  { date:'2026-03-29', s:660,  e:1020 }, // 梅田オフィス
-];
+// Google Calendar 予定（Firestoreから自動取得・オーナーがGCal同期時に更新）
+let gcalBusy = JSON.parse(localStorage.getItem('esthetic_gcal_busy') || 'null') || [];
 
 // ════════════════════════════════════════
 //  STATE
@@ -535,9 +531,35 @@ function copyMsg(){
 }
 
 // ════════════════════════════════════════
-//  INIT
+//  INIT: Firestoreから予約・GCalデータを読み込んでからカレンダーを表示
 // ════════════════════════════════════════
-goStep(1);
+(async function initBooking() {
+  try {
+    const [rSnap, sSnap] = await Promise.all([
+      FS.doc('reservations').get(),
+      FS.doc('settings').get()
+    ]);
+    // 予約データをFirestoreと同期（他デバイスの予約を反映）
+    if (rSnap.exists) {
+      const fsReses = rSnap.data().data || [];
+      const localReses = JSON.parse(localStorage.getItem('esthetic_reservations') || '[]');
+      const fsIds = new Set(fsReses.map(r => r.id));
+      const merged = [...fsReses, ...localReses.filter(r => !fsIds.has(r.id))];
+      localStorage.setItem('esthetic_reservations', JSON.stringify(merged));
+    }
+    // GCalの予定をFirestoreから取得（オーナーが同期した最新データ）
+    if (sSnap.exists) {
+      const s = sSnap.data();
+      if (s.gcal_busy && s.gcal_busy.length > 0) {
+        gcalBusy = s.gcal_busy;
+        localStorage.setItem('esthetic_gcal_busy', JSON.stringify(gcalBusy));
+      }
+    }
+  } catch(e) {
+    console.warn('初期データ読み込みエラー:', e);
+  }
+  goStep(1);
+})();
 </script>
 </body>
 </html>

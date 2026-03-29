@@ -2415,6 +2415,9 @@ async function syncGCal() {
     gcalLastSync = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
     localStorage.setItem('gcal_busy_cache', JSON.stringify(gcalBusy));
     localStorage.setItem('gcal_last_sync',  gcalLastSync);
+    // Firestoreにも保存 → booking.html（顧客側）にも反映される
+    FS.doc('settings').set({ gcal_busy: newBusy, gcal_last_sync: gcalLastSync }, { merge: true })
+      .catch(err => console.warn('GCal Firestore保存エラー:', err));
     renderOwnerCalendar();
     toast(`✅ GCal同期完了 ${newBusy.length}件取得（${gcalLastSync}）`, 'success');
   } catch(e) {
