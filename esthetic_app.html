@@ -1497,11 +1497,12 @@ function fsSave(docName, data) {
 // Firestoreから全データを読み込む
 async function fsLoad() {
   try {
-    const [cSnap, kSnap, rSnap, mSnap] = await Promise.all([
+    const [cSnap, kSnap, rSnap, mSnap, sSnap] = await Promise.all([
       FS.doc('customers').get(),
       FS.doc('kartes').get(),
       FS.doc('reservations').get(),
       FS.doc('menus').get(),
+      FS.doc('settings').get(),
     ]);
     if (cSnap.exists)  { customers    = cSnap.data().data || [];  localStorage.setItem('esthetic_customers',    JSON.stringify(customers)); }
     if (kSnap.exists)  {
@@ -1515,6 +1516,13 @@ async function fsLoad() {
     }
     if (rSnap.exists)  { reservations = rSnap.data().data || [];  localStorage.setItem('esthetic_reservations', JSON.stringify(reservations)); }
     if (mSnap.exists)  { menus        = mSnap.data().data || [];  localStorage.setItem('esthetic_menus',        JSON.stringify(menus)); }
+    if (sSnap.exists)  {
+      const s = sSnap.data();
+      if (s.gcal_ical_url) {
+        GCAL_ICAL_URL = s.gcal_ical_url;
+        localStorage.setItem('gcal_ical_url', GCAL_ICAL_URL);
+      }
+    }
   } catch(err) {
     console.warn('Firestore読み込みエラー（ローカルデータを使用）:', err);
   }
@@ -2377,6 +2385,9 @@ function saveGCalSettings() {
   if (!url) { toast('iCal URLを入力してください', 'error'); return; }
   GCAL_ICAL_URL = url;
   localStorage.setItem('gcal_ical_url', url);
+  // Firestoreにも保存 → 全デバイスで共有
+  FS.doc('settings').set({ gcal_ical_url: url }, { merge: true })
+    .catch(err => console.warn('settings保存エラー:', err));
   closeModal('modal-gcal-settings');
   syncGCal();
 }
