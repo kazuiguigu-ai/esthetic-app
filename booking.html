@@ -161,7 +161,7 @@ const SALON_NAME    = 'プライベートエステサロン';
 const EJS_PUBLIC_KEY  = 'UmbKYxel1v5ORfzgz';
 const EJS_SERVICE_ID  = 'service_48skzoh';
 const EJS_TEMPLATE_ID = 'template_rjo2z9f';
-emailjs.init(EJS_PUBLIC_KEY);
+emailjs.init({ publicKey: EJS_PUBLIC_KEY });
 
 // Load menus from localStorage (set by owner's management app) with fallback defaults
 const DEFAULT_MENUS = [
@@ -456,9 +456,11 @@ ${name} 様
 
 function sendMailNotice(name, phone, memo, endMin){
   const templateParams = {
-    to_email:     OWNER_EMAIL,
+    to_email:      OWNER_EMAIL,
+    name:          name,           // テンプレートの {{name}} 用
+    email:         '',             // テンプレートの {{email}} 用（顧客はメアド不要）
     customer_name: name,
-    phone:        phone || '未記入',
+    phone:         phone || '未記入',
     date_time:    `${fmtDate(selDate)} ${hm(selMin)}〜${hm(endMin)}`,
     menu_name:    `${selMenu.name}（${selMenu.dur}分）`,
     price:        `¥${selMenu.price.toLocaleString()}`,
