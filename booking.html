@@ -117,6 +117,9 @@
     /* ── Mail btn ── */
     .mail-btn{display:flex;align-items:center;justify-content:center;gap:7px;background:#1565c0;color:#fff;padding:12px 20px;border-radius:20px;text-decoration:none;font-weight:700;font-size:.85rem;margin-top:10px;border:none;cursor:pointer;width:100%;font-family:inherit;}
 
+    /* ── Google Calendar btn ── */
+    .gcal-btn{display:flex;align-items:center;justify-content:center;gap:8px;background:#fff;color:#1a73e8;border:2px solid #1a73e8;padding:13px 20px;border-radius:22px;font-weight:800;font-size:.92rem;cursor:pointer;width:100%;font-family:inherit;margin-bottom:10px;text-decoration:none;touch-action:manipulation;}
+
     /* ── Mobile overrides ── */
     @media (max-width:480px){
       .sc{padding:14px 12px;}
@@ -213,7 +216,7 @@ let step = 1;
 // ════════════════════════════════════════
 function getMonday(d){ const dt=new Date(d),dw=dt.getDay(); dt.setDate(dt.getDate()+(dw===0?-6:1-dw)); dt.setHours(0,0,0,0); return dt; }
 function addDays(d,n){ const dt=new Date(d); dt.setDate(dt.getDate()+n); return dt; }
-function toDS(d){ return d.toISOString().slice(0,10); }
+function toDS(d){ const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`; }
 function hm(m){ return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function fmtDate(ds){
@@ -466,6 +469,9 @@ ${name} 様
       <div class="srow"><span class="sl">料金</span><span class="sv">¥${selMenu.price.toLocaleString()}</span></div>
       ${memo?`<div class="srow"><span class="sl">メモ</span><span class="sv">${memo}</span></div>`:''}
     </div>
+    <a class="gcal-btn" href="${buildGcalUrl(selDate, selMin, endMin, selMenu, name)}" target="_blank" rel="noopener">
+      📅 Googleカレンダーに追加する
+    </a>
     <div class="line-box">
       <h3>📋 オーナーからLINEで届く確定メッセージ（プレビュー）</h3>
       <div class="lmsg" id="lmsg">${lineMsg}</div>
@@ -506,6 +512,19 @@ ${name} 様
   emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, templateParams)
     .then(() => console.log('メール送信成功'))
     .catch(err => console.warn('メール送信失敗:', err));
+}
+
+function buildGcalUrl(dateStr, startMin, endMin, menu, customerName) {
+  // YYYYMMDDTHHMMSS 形式に変換
+  const pad = n => String(n).padStart(2,'0');
+  const [y, m, d] = dateStr.split('-');
+  const startH = pad(Math.floor(startMin / 60)), startM = pad(startMin % 60);
+  const endH   = pad(Math.floor(endMin   / 60)), endM   = pad(endMin   % 60);
+  const start  = `${y}${m}${d}T${startH}${startM}00`;
+  const end    = `${y}${m}${d}T${endH}${endM}00`;
+  const title  = encodeURIComponent(`${menu.name}（${SALON_NAME}）`);
+  const detail = encodeURIComponent(`お名前：${customerName}\nメニュー：${menu.name}（${menu.dur}分）\n料金：¥${menu.price.toLocaleString()}`);
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${detail}`;
 }
 
 function copyMsg(){
