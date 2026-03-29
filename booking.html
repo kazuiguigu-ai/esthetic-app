@@ -9,6 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="ご予約">
   <title>ご予約受付 🌸</title>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
   <style>
     :root {
       --pink:#f4a7b9; --pink-l:#fce4ec; --pink-m:#f8bbd0;
@@ -163,6 +165,18 @@ const EJS_SERVICE_ID  = 'service_48skzoh';
 const EJS_TEMPLATE_ID = 'template_rjo2z9f';
 emailjs.init({ publicKey: EJS_PUBLIC_KEY });
 
+// ── Firestore（esthetic_app.htmlと同じプロジェクト）──
+firebase.initializeApp({
+  apiKey: "AIzaSyAr5_qbv3y2Su-VbpscPxi2oJEFFULj59E",
+  authDomain: "esthetic-app-bc06c.firebaseapp.com",
+  projectId: "esthetic-app-bc06c",
+  storageBucket: "esthetic-app-bc06c.firebasestorage.app",
+  messagingSenderId: "828759623015",
+  appId: "1:828759623015:web:4be6d33f8c44868758dbc2"
+});
+const db  = firebase.firestore();
+const FS  = db.collection('esthetic_app');
+
 // Load menus from localStorage (set by owner's management app) with fallback defaults
 const DEFAULT_MENUS = [
   { id:'fc60', name:'フェイシャルケア',             icon:'✨', dur:60,  price:8000,  desc:'お肌のハリ・ツヤを取り戻す定番ケア' },
@@ -207,7 +221,12 @@ function fmtDate(ds){
   return `${d.getMonth()+1}月${d.getDate()}日（${DAY_JA[d.getDay()]}）`;
 }
 function getReses(){ return JSON.parse(localStorage.getItem('esthetic_reservations')||'[]'); }
-function saveReses(a){ localStorage.setItem('esthetic_reservations',JSON.stringify(a)); }
+function saveReses(a){
+  localStorage.setItem('esthetic_reservations', JSON.stringify(a));
+  // Firestoreにも同期（PCなど別デバイスに即反映）
+  FS.doc('reservations').set({ data: a })
+    .catch(err => console.warn('Firestore予約保存エラー:', err));
+}
 function getCusts(){ return JSON.parse(localStorage.getItem('esthetic_customers')||'[]'); }
 function saveCusts(a){ localStorage.setItem('esthetic_customers',JSON.stringify(a)); }
 
