@@ -2945,6 +2945,49 @@ function restoreData(event) {
   await fsLoad();
   refreshMenuSelects();
   renderDashboard();
+
+  // ── 起動時 GCal 自動同期（URLが設定済みの場合のみ・サイレント実行）──
+  if (GCAL_ICAL_URLS.length) {
+    // ボタン表示は変えずにバックグラウンドで同期
+    try {
+      const allBusy = [];
+      const fetches = GCAL_ICAL_URLS.map(async (icalUrl) => {
+        const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(icalUrl) + '&_=' + Date.now();
+        const res = await fetch(proxyUrl, { cache: 'no-store' });
+        if (!res.ok) return { busy: [], debug: {} };
+        const icalText = await res.text();
+        if (!icalText.includes('BEGIN:VCALENDAR')) return { busy: [], debug: {} };
+        return _parseICalBusy(icalText);
+      });
+      const results = await Promise.all(fetches);
+      for (const { busy } of results) allBusy.push(...(busy || []));
+      if (allBusy.length > 0) {
+        // 重複除去・ソート
+        const seen = new Set();
+        const newBusy = allBusy.filter(ev => {
+          const key = `${ev.date}|${ev.startMin}|${ev.endMin}|${ev.title}`;
+          if (seen.has(key)) return false;
+          seen.add(key); return true;
+        }).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.startMin - b.startMin);
+        gcalBusy = newBusy;
+        const now2 = new Date();
+        gcalLastSync = `${now2.getMonth()+1}/${now2.getDate()} ${String(now2.getHours()).padStart(2,'0')}:${String(now2.getMinutes()).padStart(2,'0')}`;
+        localStorage.setItem('gcal_busy_cache', JSON.stringify(gcalBusy));
+        localStorage.setItem('gcal_last_sync', gcalLastSync);
+        FS.doc('settings').set({ gcal_busy: newBusy, gcal_last_sync: gcalLastSync }, { merge: true })
+          .catch(() => {});
+        renderOwnerCalendar();
+        console.log('[GCal自動同期] 完了:', newBusy.length, '件');
+      }
+    } catch(e) {
+      console.warn('[GCal自動同期] エラー（無視）:', e.message);
+    }
+  }
+
+  // ── 30分ごとに自動同期 ──
+  setInterval(() => {
+    if (GCAL_ICAL_URLS.length) syncGCal();
+  }, 30 * 60 * 1000);
 })();
 </script>
 </body>
