@@ -249,7 +249,7 @@ function canBook(ds, startMin, menu){
   const now=new Date();
   if(new Date(ds+'T'+hm(startMin)+':00')<=now) return false;
   // GCal
-  if(gcalBusy.some(e=>e.date===ds&&e.s<be&&e.e>bs)) return false;
+  if(gcalBusy.some(e=>e.date===ds&&e.startMin<be&&e.endMin>bs)) return false;
   // 既存予約（バッファ込みで重複チェック）
   for(const r of getReses()){
     if(r.date!==ds||r.status==='cancelled') continue;
