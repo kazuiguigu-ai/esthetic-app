@@ -2527,6 +2527,57 @@ async function syncGCal() {
   }
 }
 
+// RRULE展開：繰り返しイベントの各出現日を rangeMin〜rangeMax の範囲で生成する
+function _expandRRule(dtstart, rruleStr, durationMs, rangeMin, rangeMax) {
+  const params = {};
+  rruleStr.split(';').forEach(p => {
+    const i = p.indexOf('=');
+    if (i > 0) params[p.slice(0, i)] = p.slice(i + 1);
+  });
+  const freq     = params.FREQ || '';
+  const interval = Math.max(1, parseInt(params.INTERVAL || '1'));
+  const maxCount = params.COUNT ? parseInt(params.COUNT) : 5000;
+  // UNTIL は YYYYMMDDTHHMMSSZ 形式の場合あり → 数字のみ抽出して parse
+  const untilStr = params.UNTIL ? params.UNTIL.replace(/[^0-9TZ]/g, '') : null;
+  const until    = untilStr ? _parseICalDt(untilStr) : null;
+  // EXDATE（除外日）は上位で処理済み前提（ここでは考慮しない）
+  const results  = [];
+  let current    = new Date(dtstart);
+  let n = 0;
+  while (n < maxCount && current.getTime() <= rangeMax) {
+    if (until && current.getTime() > until.getTime()) break;
+    if (current.getTime() >= rangeMin) results.push(new Date(current));
+    // 次の出現へ進む
+    switch (freq) {
+      case 'DAILY':
+        current = new Date(current.getTime() + interval * 86400000);
+        break;
+      case 'WEEKLY':
+        current = new Date(current.getTime() + interval * 7 * 86400000);
+        break;
+      case 'MONTHLY': {
+        const targetDay = dtstart.getDate();
+        const next = new Date(current);
+        next.setMonth(next.getMonth() + interval);
+        // 月末超え対策（例: 1/31 → 2/28）
+        if (next.getDate() !== targetDay) next.setDate(0);
+        current = next;
+        break;
+      }
+      case 'YEARLY': {
+        const next = new Date(current);
+        next.setFullYear(next.getFullYear() + interval);
+        current = next;
+        break;
+      }
+      default:
+        return results; // 未知の FREQ はそのまま返す
+    }
+    n++;
+  }
+  return results;
+}
+
 function _parseICalBusy(text) {
   const OPEN = 10 * 60, CLOSE = 19 * 60;
   // 取得対象期間：過去1年〜1年後
@@ -2540,6 +2591,21 @@ function _parseICalBusy(text) {
   const result = [];
   const debug = { total: 0, skippedAllDay: 0, skippedFree: 0, skippedOutside: 0, skippedParseFail: 0, skippedRange: 0 };
   let ev = null;
+
+  const _addBusy = (startDt, endDt, title) => {
+    const sm = startDt.getHours() * 60 + startDt.getMinutes();
+    let em   = endDt.getHours()   * 60 + endDt.getMinutes();
+    if (em === 0) em = 24 * 60; // 翌0時 = 1440分
+    if (em <= OPEN || sm >= CLOSE) { debug.skippedOutside++; return; }
+    const pad2 = n => String(n).padStart(2, '0');
+    result.push({
+      date:     `${startDt.getFullYear()}-${pad2(startDt.getMonth()+1)}-${pad2(startDt.getDate())}`,
+      startMin: Math.max(sm, OPEN),
+      endMin:   Math.min(em, CLOSE),
+      title
+    });
+  };
+
   for (const line of lines) {
     if (line === 'BEGIN:VEVENT') { ev = {}; continue; }
     if (line === 'END:VEVENT') {
@@ -2556,23 +2622,23 @@ function _parseICalBusy(text) {
             debug.skippedParseFail++;
             console.warn('[GCal] 日時パース失敗:', ev.summary, ev.start, ev.end);
           } else {
-            // 対象期間外はスキップ
-            if (s.getTime() < rangeMin || s.getTime() > rangeMax) {
-              debug.skippedRange = (debug.skippedRange || 0) + 1;
+            const durationMs = Math.max(0, e.getTime() - s.getTime());
+            if (ev.rrule) {
+              // ── 繰り返しイベント：RRULE を展開して全出現を追加 ──
+              const dates = _expandRRule(s, ev.rrule, durationMs, rangeMin, rangeMax);
+              if (dates.length === 0) debug.skippedRange++;
+              for (const startDt of dates) {
+                const endDt = durationMs > 0
+                  ? new Date(startDt.getTime() + durationMs)
+                  : new Date(startDt.getTime() + 60 * 60000); // デフォルト1時間
+                _addBusy(startDt, endDt, ev.summary || '');
+              }
             } else {
-              const sm = s.getHours() * 60 + s.getMinutes();
-              const em = e.getHours() * 60 + e.getMinutes() || 24 * 60; // 0=翌日0時の場合を補正
-              if (em <= OPEN || sm >= CLOSE) {
-                debug.skippedOutside++;
+              // ── 通常イベント：日付範囲チェックのみ ──
+              if (s.getTime() < rangeMin || s.getTime() > rangeMax) {
+                debug.skippedRange++;
               } else {
-                const pad2 = n => String(n).padStart(2,'0');
-                result.push({
-                  date:     `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`,
-                  startMin: Math.max(sm, OPEN),
-                  endMin:   Math.min(em, CLOSE),
-                  title:    ev.summary || ''
-                });
-                console.log('[GCal] 追加:', ev.summary, `${pad2(s.getMonth()+1)}/${pad2(s.getDate())} ${sm}〜${em}分`);
+                _addBusy(s, e, ev.summary || '');
               }
             }
           }
@@ -2590,7 +2656,8 @@ function _parseICalBusy(text) {
     if (line.startsWith('DTEND')) {
       ev.end = line.includes(':') ? line.split(':').slice(1).join(':') : '';
     }
-    if (line.startsWith('SUMMARY:'))        ev.summary = line.substring(8).trim();
+    if (line.startsWith('RRULE:'))           ev.rrule = line.substring(6).trim();
+    if (line.startsWith('SUMMARY:'))         ev.summary = line.substring(8).trim();
     if (line === 'TRANSP:TRANSPARENT')       ev.transparent = true;
     if (line.startsWith('STATUS:CANCELLED')) ev.transparent = true;
   }
