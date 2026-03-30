@@ -1395,7 +1395,8 @@
     <div class="modal-title">🗓️ Googleカレンダー連携設定</div>
     <p style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">
       Google Cloudの設定は不要です。<br>
-      GoogleカレンダーのiCal URLを貼り付けるだけで連携できます。
+      GoogleカレンダーのiCal URLを貼り付けるだけで連携できます。<br>
+      <strong>複数のカレンダー</strong>を登録すると、すべての予定を一括同期できます。
     </p>
     <div style="background:#fce4ec;border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text);margin-bottom:14px;line-height:1.7;">
       <strong>📋 iCal URLの取得方法</strong><br>
@@ -1406,8 +1407,13 @@
       ⑤ <strong>「iCal形式の非公開アドレス」</strong>をコピー
     </div>
     <div class="form-group">
-      <label class="form-label">iCal URL（非公開アドレス）<span style="color:red;">*</span></label>
+      <label class="form-label">iCal URL ① <span style="color:#999;font-weight:normal;">（メインカレンダー）</span><span style="color:red;">*</span></label>
       <input type="url" id="gcal-ical-url-input" class="form-control"
+             placeholder="https://calendar.google.com/calendar/ical/..." style="font-size:0.78rem;" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">iCal URL ② <span style="color:#999;font-weight:normal;">（サブカレンダー・任意）</span></label>
+      <input type="url" id="gcal-ical-url2-input" class="form-control"
              placeholder="https://calendar.google.com/calendar/ical/..." style="font-size:0.78rem;" />
     </div>
     <div class="form-actions">
@@ -1518,9 +1524,15 @@ async function fsLoad() {
     if (mSnap.exists)  { menus        = mSnap.data().data || [];  localStorage.setItem('esthetic_menus',        JSON.stringify(menus)); }
     if (sSnap.exists)  {
       const s = sSnap.data();
-      if (s.gcal_ical_url) {
-        GCAL_ICAL_URL = s.gcal_ical_url;
-        localStorage.setItem('gcal_ical_url', GCAL_ICAL_URL);
+      // 複数カレンダーURL（新形式）を優先、なければ旧形式にフォールバック
+      if (s.gcal_ical_urls && s.gcal_ical_urls.length) {
+        GCAL_ICAL_URLS = s.gcal_ical_urls;
+        localStorage.setItem('gcal_ical_urls', JSON.stringify(GCAL_ICAL_URLS));
+        localStorage.setItem('gcal_ical_url',  GCAL_ICAL_URLS[0]);
+      } else if (s.gcal_ical_url) {
+        GCAL_ICAL_URLS = [s.gcal_ical_url];
+        localStorage.setItem('gcal_ical_urls', JSON.stringify(GCAL_ICAL_URLS));
+        localStorage.setItem('gcal_ical_url',  s.gcal_ical_url);
       }
     }
   } catch(err) {
@@ -2040,14 +2052,50 @@ const DAY_EN  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 // ── GCal busy data ──
 // GCal同期ボタンを押すと自動更新。localStorage "gcal_busy_cache" に保存されます。
+// 以下は初期データ（2026年3〜6月、両カレンダーより自動生成）
 let gcalBusy = [
-  { date:"2026-03-29", startMin:660,  endMin:1020, title:"梅田オフィス" },
-  { date:"2026-03-29", startMin:660,  endMin:735,  title:"Claude触ってみる会" },
-  { date:"2026-04-01", startMin:780,  endMin:870,  title:"フェイシャルケア プレミアム（qwe様）" },
+  { date:"2026-03-30", startMin:690,  endMin:810,  title:"伏田さま" },
+  { date:"2026-03-30", startMin:870,  endMin:960,  title:"上地NBAミーティング" },
+  { date:"2026-03-31", startMin:600,  endMin:960,  title:"プレミアムエステ②" },
+  { date:"2026-04-03", startMin:600,  endMin:720,  title:"ハピサク" },
+  { date:"2026-04-03", startMin:810,  endMin:930,  title:"草谷さま" },
+  { date:"2026-04-05", startMin:630,  endMin:840,  title:"稲荷祭" },
+  { date:"2026-04-06", startMin:600,  endMin:780,  title:"アカデミー①同行" },
+  { date:"2026-04-06", startMin:1020, endMin:1080, title:"歯科" },
+  { date:"2026-04-08", startMin:600,  endMin:720,  title:"日置さんMT" },
+  { date:"2026-04-08", startMin:810,  endMin:900,  title:"亀田さん" },
+  { date:"2026-04-09", startMin:600,  endMin:720,  title:"子育てサロン" },
+  { date:"2026-04-09", startMin:750,  endMin:1020, title:"穂高お留守番" },
+  { date:"2026-04-09", startMin:1110, endMin:1140, title:"坂田さま" },
+  { date:"2026-04-14", startMin:630,  endMin:750,  title:"徳川さま" },
+  { date:"2026-04-15", startMin:600,  endMin:1020, title:"ふれあ" },
+  { date:"2026-04-16", startMin:600,  endMin:780,  title:"直幹" },
+  { date:"2026-04-17", startMin:600,  endMin:720,  title:"NBA直幹" },
+  { date:"2026-04-17", startMin:720,  endMin:780,  title:"【エステ】田中 - フェイシャルケア" },
+  { date:"2026-04-17", startMin:840,  endMin:960,  title:"豊中オーナーミーティング" },
   { date:"2026-04-18", startMin:660,  endMin:720,  title:"楽天感謝デー" },
-  { date:"2026-04-20", startMin:690,  endMin:750,  title:"口座振替" }
+  { date:"2026-04-19", startMin:600,  endMin:990,  title:"えびえフェス" },
+  { date:"2026-04-20", startMin:600,  endMin:780,  title:"認定講師養成" },
+  { date:"2026-04-20", startMin:690,  endMin:750,  title:"口座振替" },
+  { date:"2026-04-23", startMin:660,  endMin:870,  title:"学プロランチ会" },
+  { date:"2026-04-26", startMin:690,  endMin:930,  title:"ふれあい喫茶" },
+  { date:"2026-05-14", startMin:600,  endMin:720,  title:"子育てサロン" },
+  { date:"2026-05-16", startMin:840,  endMin:1140, title:"学長と遊ぶUSJスペシャルナイト2026" },
+  { date:"2026-05-18", startMin:660,  endMin:720,  title:"楽天感謝デー" },
+  { date:"2026-05-20", startMin:690,  endMin:750,  title:"口座振替" },
+  { date:"2026-05-24", startMin:690,  endMin:930,  title:"ふれあい喫茶" },
+  { date:"2026-05-26", startMin:600,  endMin:690,  title:"人間ドック" },
+  { date:"2026-05-26", startMin:690,  endMin:750,  title:"検診" },
+  { date:"2026-06-11", startMin:600,  endMin:720,  title:"子育てサロン" },
+  { date:"2026-06-13", startMin:600,  endMin:1140, title:"家族会(第2回)" },
+  { date:"2026-06-14", startMin:600,  endMin:960,  title:"四校？" },
+  { date:"2026-06-18", startMin:660,  endMin:720,  title:"楽天感謝デー" },
+  { date:"2026-06-20", startMin:690,  endMin:750,  title:"口座振替" },
+  { date:"2026-06-26", startMin:600,  endMin:960,  title:"晴子さん出産日" },
+  { date:"2026-06-26", startMin:1080, endMin:1140, title:"民生委員総会" },
+  { date:"2026-06-28", startMin:690,  endMin:930,  title:"ふれあい喫茶" },
 ];
-let gcalLastSync = "2026-03-29";
+let gcalLastSync = "2026-03-30";
 // localStorage にキャッシュがあれば上書き
 (function() {
   const cached = localStorage.getItem('gcal_busy_cache');
@@ -2372,21 +2420,34 @@ function doConfirmReservation() {
   renderReservations();
 }
 
-// ── GCal iCal 同期（OAuthなし・Google Cloud設定不要）──
-let GCAL_ICAL_URL = localStorage.getItem('gcal_ical_url') || '';
+// ── GCal iCal 同期（OAuthなし・Google Cloud設定不要・複数カレンダー対応）──
+// GCAL_ICAL_URLS: 最大2カレンダーのiCal URLを配列で管理
+function _loadGCalUrls() {
+  try {
+    const stored = localStorage.getItem('gcal_ical_urls');
+    if (stored) return JSON.parse(stored);
+  } catch(e) {}
+  // 旧形式（単一URL）からの移行
+  const legacy = localStorage.getItem('gcal_ical_url');
+  return legacy ? [legacy] : [];
+}
+let GCAL_ICAL_URLS = _loadGCalUrls();
 
 function showGCalSettings() {
-  document.getElementById('gcal-ical-url-input').value = GCAL_ICAL_URL;
+  document.getElementById('gcal-ical-url-input').value  = GCAL_ICAL_URLS[0] || '';
+  document.getElementById('gcal-ical-url2-input').value = GCAL_ICAL_URLS[1] || '';
   openModal('modal-gcal-settings');
 }
 
 function saveGCalSettings() {
-  const url = document.getElementById('gcal-ical-url-input').value.trim();
-  if (!url) { toast('iCal URLを入力してください', 'error'); return; }
-  GCAL_ICAL_URL = url;
-  localStorage.setItem('gcal_ical_url', url);
+  const url1 = document.getElementById('gcal-ical-url-input').value.trim();
+  const url2 = document.getElementById('gcal-ical-url2-input').value.trim();
+  if (!url1) { toast('iCal URL①を入力してください', 'error'); return; }
+  GCAL_ICAL_URLS = url2 ? [url1, url2] : [url1];
+  localStorage.setItem('gcal_ical_urls', JSON.stringify(GCAL_ICAL_URLS));
+  localStorage.setItem('gcal_ical_url',  url1); // 旧形式との互換性
   // Firestoreにも保存 → 全デバイスで共有
-  FS.doc('settings').set({ gcal_ical_url: url }, { merge: true })
+  FS.doc('settings').set({ gcal_ical_urls: GCAL_ICAL_URLS, gcal_ical_url: url1 }, { merge: true })
     .catch(err => console.warn('settings保存エラー:', err));
   closeModal('modal-gcal-settings');
   syncGCal();
@@ -2398,19 +2459,46 @@ function _gcalResetBtn() {
 }
 
 async function syncGCal() {
-  if (!GCAL_ICAL_URL) { showGCalSettings(); return; }
+  if (!GCAL_ICAL_URLS.length) { showGCalSettings(); return; }
   const btn = document.getElementById('gcal-sync-btn');
   if (btn) { btn.textContent = '⏳ 同期中...'; btn.disabled = true; }
   try {
-    // キャッシュバスティング付きでCORSプロキシ経由取得
-    const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(GCAL_ICAL_URL)
-                   + '&_=' + Date.now();
-    const res = await fetch(proxyUrl, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const icalText = await res.text();
-    if (!icalText.includes('BEGIN:VCALENDAR')) throw new Error('iCalデータが取得できませんでした');
+    const allBusy = [];
+    const totalDebug = { total: 0, skippedAllDay: 0, skippedFree: 0, skippedOutside: 0, skippedParseFail: 0 };
 
-    const { busy: newBusy, debug } = _parseICalBusy(icalText);
+    // 全URLを並列取得して結果をマージ
+    const fetches = GCAL_ICAL_URLS.map(async (icalUrl, idx) => {
+      const proxyUrl = 'https://corsproxy.io/?url=' + encodeURIComponent(icalUrl)
+                     + '&_=' + Date.now();
+      const res = await fetch(proxyUrl, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`カレンダー${idx+1}: HTTP ${res.status}`);
+      const icalText = await res.text();
+      if (!icalText.includes('BEGIN:VCALENDAR')) throw new Error(`カレンダー${idx+1}: iCalデータが取得できませんでした`);
+      const { busy, debug } = _parseICalBusy(icalText);
+      return { busy, debug };
+    });
+
+    const results = await Promise.all(fetches);
+    for (const { busy, debug } of results) {
+      allBusy.push(...busy);
+      totalDebug.total         += debug.total;
+      totalDebug.skippedAllDay  += debug.skippedAllDay;
+      totalDebug.skippedFree    += debug.skippedFree;
+      totalDebug.skippedOutside += debug.skippedOutside;
+      totalDebug.skippedParseFail += debug.skippedParseFail;
+    }
+
+    // 重複除去（同日・同時刻・同タイトル）
+    const seen = new Set();
+    const newBusy = allBusy.filter(ev => {
+      const key = `${ev.date}|${ev.startMin}|${ev.endMin}|${ev.title}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    // 日付・開始時刻順にソート
+    newBusy.sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.startMin - b.startMin);
+
     gcalBusy = newBusy;
     const now = new Date();
     gcalLastSync = `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -2421,15 +2509,14 @@ async function syncGCal() {
       .catch(err => console.warn('GCal Firestore保存エラー:', err));
     renderOwnerCalendar();
 
-    // 詳細ログをコンソールに出力（除外理由の確認用）
-    console.log('[GCal同期] 取得結果:', debug);
+    console.log('[GCal同期] 取得結果:', totalDebug);
 
-    // 除外があった場合は内訳をトーストに表示
-    let msg = `✅ GCal同期完了（${gcalLastSync}）　営業時間内: ${newBusy.length}件`;
+    const calCount = GCAL_ICAL_URLS.length;
+    let msg = `✅ GCal同期完了（${gcalLastSync}）　${calCount}カレンダー・営業時間内: ${newBusy.length}件`;
     const excluded = [];
-    if (debug.skippedAllDay  > 0) excluded.push(`終日${debug.skippedAllDay}件`);
-    if (debug.skippedFree    > 0) excluded.push(`空き扱い${debug.skippedFree}件`);
-    if (debug.skippedOutside > 0) excluded.push(`営業外${debug.skippedOutside}件`);
+    if (totalDebug.skippedAllDay  > 0) excluded.push(`終日${totalDebug.skippedAllDay}件`);
+    if (totalDebug.skippedFree    > 0) excluded.push(`空き扱い${totalDebug.skippedFree}件`);
+    if (totalDebug.skippedOutside > 0) excluded.push(`営業外${totalDebug.skippedOutside}件`);
     if (excluded.length > 0) msg += `　除外: ${excluded.join('・')}`;
     toast(msg, 'success');
   } catch(e) {
