@@ -2517,6 +2517,7 @@ async function syncGCal() {
     if (totalDebug.skippedAllDay  > 0) excluded.push(`終日${totalDebug.skippedAllDay}件`);
     if (totalDebug.skippedFree    > 0) excluded.push(`空き扱い${totalDebug.skippedFree}件`);
     if (totalDebug.skippedOutside > 0) excluded.push(`営業外${totalDebug.skippedOutside}件`);
+    if ((totalDebug.skippedRange||0) > 0) excluded.push(`期間外${totalDebug.skippedRange}件`);
     if (excluded.length > 0) msg += `　除外: ${excluded.join('・')}`;
     toast(msg, 'success');
   } catch(e) {
@@ -2528,11 +2529,16 @@ async function syncGCal() {
 
 function _parseICalBusy(text) {
   const OPEN = 10 * 60, CLOSE = 19 * 60;
+  // 取得対象期間：過去1年〜1年後
+  const now = new Date();
+  const rangeMin = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()).getTime();
+  const rangeMax = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate()).getTime();
+
   // 行の継続（折り返し）を結合
   const raw = text.replace(/\r\n[ \t]/g, '').replace(/\r/g, '');
   const lines = raw.split('\n');
   const result = [];
-  const debug = { total: 0, skippedAllDay: 0, skippedFree: 0, skippedOutside: 0, skippedParseFail: 0 };
+  const debug = { total: 0, skippedAllDay: 0, skippedFree: 0, skippedOutside: 0, skippedParseFail: 0, skippedRange: 0 };
   let ev = null;
   for (const line of lines) {
     if (line === 'BEGIN:VEVENT') { ev = {}; continue; }
@@ -2550,20 +2556,24 @@ function _parseICalBusy(text) {
             debug.skippedParseFail++;
             console.warn('[GCal] 日時パース失敗:', ev.summary, ev.start, ev.end);
           } else {
-            const sm = s.getHours() * 60 + s.getMinutes();
-            const em = e.getHours() * 60 + e.getMinutes();
-            if (em <= OPEN || sm >= CLOSE) {
-              debug.skippedOutside++;
-              console.log('[GCal] 営業時間外のためスキップ:', ev.summary, `${sm}〜${em}分`);
+            // 対象期間外はスキップ
+            if (s.getTime() < rangeMin || s.getTime() > rangeMax) {
+              debug.skippedRange = (debug.skippedRange || 0) + 1;
             } else {
-              const pad2 = n => String(n).padStart(2,'0');
-              result.push({
-                date:     `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`,
-                startMin: Math.max(sm, OPEN),
-                endMin:   Math.min(em, CLOSE),
-                title:    ev.summary || ''
-              });
-              console.log('[GCal] 追加:', ev.summary, `${pad2(s.getMonth()+1)}/${pad2(s.getDate())} ${sm}〜${em}分`);
+              const sm = s.getHours() * 60 + s.getMinutes();
+              const em = e.getHours() * 60 + e.getMinutes() || 24 * 60; // 0=翌日0時の場合を補正
+              if (em <= OPEN || sm >= CLOSE) {
+                debug.skippedOutside++;
+              } else {
+                const pad2 = n => String(n).padStart(2,'0');
+                result.push({
+                  date:     `${s.getFullYear()}-${pad2(s.getMonth()+1)}-${pad2(s.getDate())}`,
+                  startMin: Math.max(sm, OPEN),
+                  endMin:   Math.min(em, CLOSE),
+                  title:    ev.summary || ''
+                });
+                console.log('[GCal] 追加:', ev.summary, `${pad2(s.getMonth()+1)}/${pad2(s.getDate())} ${sm}〜${em}分`);
+              }
             }
           }
         }
